@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"os"
+	"sportracker/view"
 )
 
 type InternalError struct {

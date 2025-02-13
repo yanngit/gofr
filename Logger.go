@@ -1,4 +1,4 @@
-package logger
+package gofr
 
 import (
 	"fmt"
@@ -11,17 +11,21 @@ import (
 	"runtime"
 )
 
-func Middleware() gin.HandlerFunc {
+func loggerMiddleware(appName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session := sessions.Default(c)
 		sessionId := session.Get("loggerSessionId")
 		if sessionId == nil {
 			sessionId = uuid.New().String()
 			session.Set("loggerSessionId", sessionId)
-			session.Save()
+			err := session.Save()
+			if err != nil {
+				println("cannot save in session")
+				return
+			}
 		}
 		logger := logrus.New()
-		configureLogger(logger)
+		configureLogger(logger, appName)
 		loggerEntry := logger.WithContext(c.Request.Context()).WithFields(logrus.Fields{
 			"method":    c.Request.Method,
 			"path":      c.Request.URL.Path,
@@ -32,13 +36,13 @@ func Middleware() gin.HandlerFunc {
 	}
 }
 
-func configureLogger(logger *logrus.Logger) {
+func configureLogger(logger *logrus.Logger, appName string) {
 	logger.SetReportCaller(true)
 	logger.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "2006-01-02 15:04:05",
 		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-			re := regexp.MustCompile(`^.*?sportracker/`)
+			re := regexp.MustCompile("^.*?" + appName + "/")
 			cleanPath := re.ReplaceAllString(f.File, "")
 			return fmt.Sprintf(""), fmt.Sprintf("%s:%d", cleanPath, f.Line)
 		},
