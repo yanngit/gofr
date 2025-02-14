@@ -6,17 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/sirupsen/logrus"
-	error2 "github.com/yanngit/gofr/err"
 	"io"
 	"math/big"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/sirupsen/logrus"
+	"github.com/yanngit/gofr/gofrerr"
 )
 
 type Middleware struct {
@@ -142,24 +143,24 @@ func getTokenInfo(c *gin.Context, token string) (*tokenInfo, error) {
 	cLogger.Debugf("getting token info with formData=%+v and url=%s", formData, oidcIntrospectTokenUrl)
 	req, err := http.NewRequest(http.MethodPost, oidcIntrospectTokenUrl, strings.NewReader(formData.Encode()))
 	if err != nil {
-		return nil, error2.NewInternalErrorWithMessage(err, "cannot create http request for token introspection")
+		return nil, gofrerr.NewInternalErrorWithMessage(err, "cannot create http request for token introspection")
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Authorization", authHeader)
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, error2.NewInternalErrorWithMessage(err, "cannot create http request for token introspection")
+		return nil, gofrerr.NewInternalErrorWithMessage(err, "cannot create http request for token introspection")
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, error2.NewInternalErrorWithMessage(err, "cannot read token introspection response")
+		return nil, gofrerr.NewInternalErrorWithMessage(err, "cannot read token introspection response")
 	}
 	/*Unmarshal the JSON response into struct*/
 	var introResponse tokenInfo
 	err = json.Unmarshal(body, &introResponse)
 	if err != nil {
-		return nil, error2.NewInternalErrorWithMessage(err, "cannot unmarshall token introspection response")
+		return nil, gofrerr.NewInternalErrorWithMessage(err, "cannot unmarshall token introspection response")
 	}
 	return &introResponse, nil
 }
@@ -178,7 +179,7 @@ func doRefreshToken(c *gin.Context, refreshToken string) error {
 	}
 	err := GetTokenAndSaveDataInSession(c, formData, oidcRefreshTokenUrl)
 	if err != nil {
-		return error2.NewAuthErrorWithMessage(err, "cannot refresh token")
+		return gofrerr.NewAuthErrorWithMessage(err, "cannot refresh token")
 	}
 	return nil
 }
@@ -192,22 +193,22 @@ func (a *Middleware) getJKWS() error {
 
 	req, err := http.NewRequest(http.MethodGet, oidcKeysUrl, nil)
 	if err != nil {
-		return error2.NewInternalErrorWithMessage(err, "cannot create http request for jKWS")
+		return gofrerr.NewInternalErrorWithMessage(err, "cannot create http request for jKWS")
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return error2.NewInternalErrorWithMessage(err, "cannot execute http request for jKWS")
+		return gofrerr.NewInternalErrorWithMessage(err, "cannot execute http request for jKWS")
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return error2.NewInternalErrorWithMessage(err, "cannot read OIDC jKWS response")
+		return gofrerr.NewInternalErrorWithMessage(err, "cannot read OIDC jKWS response")
 	}
 	/*Unmarshal the JSON response into struct*/
 	err = json.Unmarshal(body, &a.jKWS)
 	if err != nil {
-		return error2.NewInternalErrorWithMessage(err, "cannot unmarshall OIDC jKWS response")
+		return gofrerr.NewInternalErrorWithMessage(err, "cannot unmarshall OIDC jKWS response")
 	}
 	return nil
 
@@ -224,38 +225,38 @@ func (a *Middleware) Authenticate() gin.HandlerFunc {
 		session := sessions.Default(c)
 		accessToken := session.Get("accessToken")
 		if accessToken == nil {
-			error2.HandleError(c, error2.NewAuthErrorWithMessage(errors.New("accessToken nil in Authenticate middleware"), "accessToken not defined in the session"))
+			gofrerr.HandleError(c, gofrerr.NewAuthErrorWithMessage(errors.New("accessToken nil in Authenticate middleware"), "accessToken not defined in the session"))
 			return
 		}
 		/*First we validate the accessToken*/
 		tokenValid, err := isTokenValidOffline(c, accessToken.(string), a.jKWS)
 		if err != nil {
-			error2.HandleError(c, error2.NewAuthErrorWithMessage(err, "not able to validate access token"))
+			gofrerr.HandleError(c, gofrerr.NewAuthErrorWithMessage(err, "not able to validate access token"))
 			return
 		}
 		/*If access token is not active, we try to refresh token*/
 		if !tokenValid {
 			refreshToken := session.Get("refreshToken")
 			if refreshToken == nil {
-				error2.HandleError(c, error2.NewAuthErrorWithMessage(errors.New("refreshToken nil"), "refreshToken not defined in the session"))
+				gofrerr.HandleError(c, gofrerr.NewAuthErrorWithMessage(errors.New("refreshToken nil"), "refreshToken not defined in the session"))
 				return
 			}
 
 			cLogger.Infof("token not valid, trying to refresh the token")
 			err = doRefreshToken(c, refreshToken.(string))
 			if err != nil {
-				error2.HandleError(c, err)
+				gofrerr.HandleError(c, err)
 				return
 			}
 			/*Get user info with new access_key*/
 			accessToken = session.Get("accessToken")
 			tokenInfo, err := getTokenInfo(c, accessToken.(string))
 			if err != nil {
-				error2.HandleError(c, err)
+				gofrerr.HandleError(c, err)
 				return
 			}
 			if !tokenInfo.Active {
-				error2.HandleError(c, error2.NewAuthErrorWithMessage(errors.New("access token expired after refresh"), "access token expired after refresh success"))
+				gofrerr.HandleError(c, gofrerr.NewAuthErrorWithMessage(errors.New("access token expired after refresh"), "access token expired after refresh success"))
 				return
 			}
 		}

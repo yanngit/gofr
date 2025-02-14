@@ -4,15 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
-	error2 "github.com/yanngit/gofr/err"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
+	"github.com/yanngit/gofr/gofrerr"
 )
 
 type TokenResponse struct {
@@ -53,7 +54,7 @@ func (ctrl *AuthController) Handle(r *gin.Engine) {
 		}
 		err := GetTokenAndSaveDataInSession(c, formData, oidcGetTokenUrl)
 		if err != nil {
-			error2.HandleError(c, err)
+			gofrerr.HandleError(c, err)
 			return
 		}
 		cLogger.Info("login callback success, redirecting to /home")
@@ -67,27 +68,27 @@ func GetTokenAndSaveDataInSession(c *gin.Context, formData url.Values, oidcGetTo
 	cLogger.Debugf("requesting token with formData=%+v", formData)
 	req, err := http.NewRequest(http.MethodPost, oidcGetTokenUrl, strings.NewReader(formData.Encode()))
 	if err != nil {
-		return error2.NewInternalErrorWithMessage(err, "cannot create http request for OIDC token response")
+		return gofrerr.NewInternalErrorWithMessage(err, "cannot create http request for OIDC token response")
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	resp, err := client.Do(req)
 	if err != nil {
-		return error2.NewInternalErrorWithMessage(err, "cannot run http request for OIDC token response")
+		return gofrerr.NewInternalErrorWithMessage(err, "cannot run http request for OIDC token response")
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return error2.NewInternalErrorWithMessage(err, "cannot read OIDC token response")
+		return gofrerr.NewInternalErrorWithMessage(err, "cannot read OIDC token response")
 	}
 	/*Unmarshal the JSON response into struct*/
 	var tokenResp TokenResponse
 	err = json.Unmarshal(body, &tokenResp)
 	if err != nil {
-		return error2.NewInternalErrorWithMessage(err, "cannot unmarshall OIDC token response")
+		return gofrerr.NewInternalErrorWithMessage(err, "cannot unmarshall OIDC token response")
 	}
 	cLogger.Debugf("token response=%+v", tokenResp)
 	if tokenResp.AccessToken == "" || tokenResp.RefreshToken == "" {
-		return error2.NewAuthError(errors.New(fmt.Sprintf("empty token response: %s", string(body))))
+		return gofrerr.NewAuthError(errors.New(fmt.Sprintf("empty token response: %s", string(body))))
 	}
 	tokenInfo, err := getTokenInfo(c, tokenResp.AccessToken)
 	if err != nil {
@@ -109,7 +110,7 @@ func GetTokenAndSaveDataInSession(c *gin.Context, formData url.Values, oidcGetTo
 	}
 	err = session.Save()
 	if err != nil {
-		return error2.NewInternalErrorWithMessage(err, "cannot save session with OIDC info")
+		return gofrerr.NewInternalErrorWithMessage(err, "cannot save session with OIDC info")
 	}
 	return nil
 }

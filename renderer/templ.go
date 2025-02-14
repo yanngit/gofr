@@ -3,8 +3,9 @@ package renderer
 import (
 	"context"
 	"fmt"
-	"github.com/a-h/templ"
 	"net/http"
+
+	"github.com/a-h/templ"
 )
 
 type Templ struct {

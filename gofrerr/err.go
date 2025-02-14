@@ -1,12 +1,13 @@
-package err
+package gofrerr
 
 import (
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/yanngit/gofr/renderer"
 	"net/http"
 	"os"
+
+	"github.com/gin-gonic/gin"
+	"github.com/yanngit/gofr/renderer"
 )
 
 type InternalError struct {

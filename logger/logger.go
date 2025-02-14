@@ -2,16 +2,17 @@ package logger
 
 import (
 	"fmt"
+	"os"
+	"regexp"
+	"runtime"
+
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	"os"
-	"regexp"
-	"runtime"
 )
 
-func LoggerMiddleware(appName string) gin.HandlerFunc {
+func Middleware(appName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session := sessions.Default(c)
 		sessionId := session.Get("loggerSessionId")
