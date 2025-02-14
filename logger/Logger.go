@@ -1,4 +1,4 @@
-package gofr
+package logger
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"runtime"
 )
 
-func loggerMiddleware(appName string) gin.HandlerFunc {
+func LoggerMiddleware(appName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session := sessions.Default(c)
 		sessionId := session.Get("loggerSessionId")

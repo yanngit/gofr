@@ -1,4 +1,4 @@
-package controller
+package auth
 
 import (
 	"crypto/rsa"
@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/sirupsen/logrus"
+	error2 "github.com/yanngit/gofr/err"
 	"io"
 	"math/big"
 	"net/http"
@@ -18,15 +19,15 @@ import (
 	"strings"
 )
 
-type AuthMiddleware struct {
-	jKWS JWKSet
+type Middleware struct {
+	jKWS jWKSet
 }
 
-func NewAuthMiddleware() *AuthMiddleware {
-	return &AuthMiddleware{}
+func NewAuthMiddleware() *Middleware {
+	return &Middleware{}
 }
 
-type JWK struct {
+type jWK struct {
 	Use string `json:"use"`
 	Kty string `json:"kty"`
 	Kid string `json:"kid"`
@@ -35,11 +36,11 @@ type JWK struct {
 	E   string `json:"e"`
 }
 
-type JWKSet struct {
-	Keys []JWK `json:"keys"`
+type jWKSet struct {
+	Keys []jWK `json:"keys"`
 }
 
-type TokenInfo struct {
+type tokenInfo struct {
 	Active            bool                         `json:"active"`
 	Scope             string                       `json:"scope"`
 	ClientId          string                       `json:"client_id"`
@@ -65,8 +66,8 @@ type TokenInfo struct {
 	Roles             map[string]map[string]string `json:"urn:zitadel:iam:org:project:roles"`
 }
 
-// Parse a JWK to an RSA public key
-func (jwk JWK) ToRSAPublicKey() (*rsa.PublicKey, error) {
+// Parse a jWK to an RSA public key
+func (jwk jWK) toRSAPublicKey() (*rsa.PublicKey, error) {
 	// Decode Base64 URL-encoded modulus (n)
 	nBytes, err := base64.RawURLEncoding.DecodeString(jwk.N)
 	if err != nil {
@@ -88,8 +89,8 @@ func (jwk JWK) ToRSAPublicKey() (*rsa.PublicKey, error) {
 	return &rsa.PublicKey{N: n, E: e}, nil
 }
 
-// Validate JWT with JWK
-func isTokenValidOffline(c *gin.Context, tokenString string, jwkSet JWKSet) (bool, error) {
+// Validate JWT with jWK
+func isTokenValidOffline(c *gin.Context, tokenString string, jwkSet jWKSet) (bool, error) {
 	cLogger := c.MustGet("logger").(*logrus.Entry)
 	cLogger.Debugf("validating token offline")
 	// Extract key ID (kid) from token header
@@ -98,18 +99,18 @@ func isTokenValidOffline(c *gin.Context, tokenString string, jwkSet JWKSet) (boo
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		// Find the matching JWK by "kid"
+		// Find the matching jWK by "kid"
 		kid, ok := token.Header["kid"].(string)
 		if !ok {
 			return nil, fmt.Errorf("token missing 'kid' header")
 		}
 		for _, jwk := range jwkSet.Keys {
 			if jwk.Kid == kid {
-				// Convert JWK to RSA Public Key
-				return jwk.ToRSAPublicKey()
+				// Convert jWK to RSA Public Key
+				return jwk.toRSAPublicKey()
 			}
 		}
-		return nil, fmt.Errorf("no matching JWK found for kid: %s", kid)
+		return nil, fmt.Errorf("no matching jWK found for kid: %s", kid)
 	})
 	if err != nil {
 		return false, err
@@ -122,7 +123,7 @@ func isTokenValidOffline(c *gin.Context, tokenString string, jwkSet JWKSet) (boo
 	return true, nil
 }
 
-func getTokenInfo(c *gin.Context, token string) (*TokenInfo, error) {
+func getTokenInfo(c *gin.Context, token string) (*tokenInfo, error) {
 	cLogger := c.MustGet("logger").(*logrus.Entry)
 	client := &http.Client{}
 	/*Validate token upon OIDC server*/
@@ -141,24 +142,24 @@ func getTokenInfo(c *gin.Context, token string) (*TokenInfo, error) {
 	cLogger.Debugf("getting token info with formData=%+v and url=%s", formData, oidcIntrospectTokenUrl)
 	req, err := http.NewRequest(http.MethodPost, oidcIntrospectTokenUrl, strings.NewReader(formData.Encode()))
 	if err != nil {
-		return nil, NewInternalErrorWithMessage(err, "cannot create http request for token introspection")
+		return nil, error2.NewInternalErrorWithMessage(err, "cannot create http request for token introspection")
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Authorization", authHeader)
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, NewInternalErrorWithMessage(err, "cannot create http request for token introspection")
+		return nil, error2.NewInternalErrorWithMessage(err, "cannot create http request for token introspection")
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, NewInternalErrorWithMessage(err, "cannot read token introspection response")
+		return nil, error2.NewInternalErrorWithMessage(err, "cannot read token introspection response")
 	}
 	/*Unmarshal the JSON response into struct*/
-	var introResponse TokenInfo
+	var introResponse tokenInfo
 	err = json.Unmarshal(body, &introResponse)
 	if err != nil {
-		return nil, NewInternalErrorWithMessage(err, "cannot unmarshall token introspection response")
+		return nil, error2.NewInternalErrorWithMessage(err, "cannot unmarshall token introspection response")
 	}
 	return &introResponse, nil
 }
@@ -177,12 +178,12 @@ func doRefreshToken(c *gin.Context, refreshToken string) error {
 	}
 	err := GetTokenAndSaveDataInSession(c, formData, oidcRefreshTokenUrl)
 	if err != nil {
-		return NewAuthErrorWithMessage(err, "cannot refresh token")
+		return error2.NewAuthErrorWithMessage(err, "cannot refresh token")
 	}
 	return nil
 }
 
-func (a *AuthMiddleware) getJKWS() error {
+func (a *Middleware) getJKWS() error {
 	/*OIDC provider send us the code after the user log in, thanks to redirect_uri*/
 	client := &http.Client{}
 	/*Request a token to OIDC provider to store it on a session for the user so that he can navigate*/
@@ -191,28 +192,28 @@ func (a *AuthMiddleware) getJKWS() error {
 
 	req, err := http.NewRequest(http.MethodGet, oidcKeysUrl, nil)
 	if err != nil {
-		return NewInternalErrorWithMessage(err, "cannot create http request for jKWS")
+		return error2.NewInternalErrorWithMessage(err, "cannot create http request for jKWS")
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return NewInternalErrorWithMessage(err, "cannot execute http request for jKWS")
+		return error2.NewInternalErrorWithMessage(err, "cannot execute http request for jKWS")
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return NewInternalErrorWithMessage(err, "cannot read OIDC jKWS response")
+		return error2.NewInternalErrorWithMessage(err, "cannot read OIDC jKWS response")
 	}
 	/*Unmarshal the JSON response into struct*/
 	err = json.Unmarshal(body, &a.jKWS)
 	if err != nil {
-		return NewInternalErrorWithMessage(err, "cannot unmarshall OIDC jKWS response")
+		return error2.NewInternalErrorWithMessage(err, "cannot unmarshall OIDC jKWS response")
 	}
 	return nil
 
 }
 
-func (a *AuthMiddleware) Authenticate() gin.HandlerFunc {
+func (a *Middleware) Authenticate() gin.HandlerFunc {
 	if a.jKWS.Keys == nil {
 		if err := a.getJKWS(); err != nil {
 			panic(fmt.Errorf("cannot get jKWS: %v", err))
@@ -223,38 +224,38 @@ func (a *AuthMiddleware) Authenticate() gin.HandlerFunc {
 		session := sessions.Default(c)
 		accessToken := session.Get("accessToken")
 		if accessToken == nil {
-			HandleError(c, NewAuthErrorWithMessage(errors.New("accessToken nil in Authenticate middleware"), "accessToken not defined in the session"))
+			error2.HandleError(c, error2.NewAuthErrorWithMessage(errors.New("accessToken nil in Authenticate middleware"), "accessToken not defined in the session"))
 			return
 		}
 		/*First we validate the accessToken*/
 		tokenValid, err := isTokenValidOffline(c, accessToken.(string), a.jKWS)
 		if err != nil {
-			HandleError(c, NewAuthErrorWithMessage(err, "not able to validate access token"))
+			error2.HandleError(c, error2.NewAuthErrorWithMessage(err, "not able to validate access token"))
 			return
 		}
 		/*If access token is not active, we try to refresh token*/
 		if !tokenValid {
 			refreshToken := session.Get("refreshToken")
 			if refreshToken == nil {
-				HandleError(c, NewAuthErrorWithMessage(errors.New("refreshToken nil"), "refreshToken not defined in the session"))
+				error2.HandleError(c, error2.NewAuthErrorWithMessage(errors.New("refreshToken nil"), "refreshToken not defined in the session"))
 				return
 			}
 
 			cLogger.Infof("token not valid, trying to refresh the token")
 			err = doRefreshToken(c, refreshToken.(string))
 			if err != nil {
-				HandleError(c, err)
+				error2.HandleError(c, err)
 				return
 			}
 			/*Get user info with new access_key*/
 			accessToken = session.Get("accessToken")
 			tokenInfo, err := getTokenInfo(c, accessToken.(string))
 			if err != nil {
-				HandleError(c, err)
+				error2.HandleError(c, err)
 				return
 			}
 			if !tokenInfo.Active {
-				HandleError(c, NewAuthErrorWithMessage(errors.New("access token expired after refresh"), "access token expired after refresh success"))
+				error2.HandleError(c, error2.NewAuthErrorWithMessage(errors.New("access token expired after refresh"), "access token expired after refresh success"))
 				return
 			}
 		}
