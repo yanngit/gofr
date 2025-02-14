@@ -24,10 +24,6 @@ type Middleware struct {
 	jKWS jWKSet
 }
 
-func NewAuthMiddleware() *Middleware {
-	return &Middleware{}
-}
-
 type jWK struct {
 	Use string `json:"use"`
 	Kty string `json:"kty"`

@@ -25,14 +25,14 @@ type TokenResponse struct {
 	Scope        string `json:"scope"`
 }
 
-type AuthController struct {
+type Controller struct {
 }
 
-func NewAuthController() *AuthController {
-	return &AuthController{}
+func NewAuthController() *Controller {
+	return &Controller{}
 }
 
-func (ctrl *AuthController) Handle(r *gin.Engine) {
+func (ctrl *Controller) Handle(r *gin.Engine) {
 	r.GET("/auth/callback", func(c *gin.Context) {
 		cLogger := c.MustGet("logger").(*logrus.Entry)
 		/*OIDC provider send us the code after the user log in, thanks to redirect_uri*/
