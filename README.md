@@ -14,7 +14,8 @@ This will run Zitadel locally on `http://localhost:8080/ui/console/`.
 Default admin user is `zitadel-admin@zitadel.localhost` and password is `Password1!` that you will change on first login.
 ### Configure zitadel
 Login to the console and create a new project. Tick `Assert Roles on Authentication` on your project config to get roles in
-context and create an admin role that you can set to admin users. Only `admin` role is handled for now, with a boolean set in context.
+context and create an admin role that you can set to admin users. The role is created in `Roles` menu and 
+adding this role to users is done in `Authorizations` menu. Only `admin` role is handled for now, with a boolean set in context.
 We're going to create two applications inside it.
 #### Client side
 Client side application is responsible to get request token and refresh token. Create a web application
