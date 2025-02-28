@@ -21,7 +21,7 @@ import (
 )
 
 type Middleware struct {
-	jKWS jWKSet
+	jKWS *jWKSet
 }
 
 type jWK struct {
@@ -87,7 +87,7 @@ func (jwk jWK) toRSAPublicKey() (*rsa.PublicKey, error) {
 }
 
 // Validate JWT with jWK
-func isTokenValidOffline(c *gin.Context, tokenString string, jwkSet jWKSet) (bool, error) {
+func isTokenValidOffline(c *gin.Context, tokenString string, jwkSet *jWKSet) (bool, error) {
 	cLogger := c.MustGet("logger").(*logrus.Entry)
 	cLogger.Debugf("validating token offline")
 	// Extract key ID (kid) from token header
@@ -181,7 +181,6 @@ func doRefreshToken(c *gin.Context, refreshToken string) error {
 }
 
 func (a *Middleware) getJKWS() error {
-	/*OIDC provider send us the code after the user log in, thanks to redirect_uri*/
 	client := &http.Client{}
 	/*Request a token to OIDC provider to store it on a session for the user so that he can navigate*/
 	oidcHost := os.Getenv("OIDC_HOST")
@@ -207,11 +206,10 @@ func (a *Middleware) getJKWS() error {
 		return gofrerr.NewInternalErrorWithMessage(err, "cannot unmarshall OIDC jKWS response")
 	}
 	return nil
-
 }
 
 func (a *Middleware) Authenticate() gin.HandlerFunc {
-	if a.jKWS.Keys == nil {
+	if a.jKWS == nil {
 		if err := a.getJKWS(); err != nil {
 			panic(fmt.Errorf("cannot get jKWS: %v", err))
 		}
