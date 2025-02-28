@@ -29,7 +29,7 @@ func verifyEnvVars() {
 	}
 }
 
-func NewServer(appName string) *Server {
+func NewServer(appName string, redirectUri string) *Server {
 	verifyEnvVars()
 	r := gin.Default()
 	/*Create store to manage session cookies (will encrypt them)*/
@@ -41,7 +41,7 @@ func NewServer(appName string) *Server {
 	/*Adding logger middleware for logger stored in context*/
 	r.Use(sessions.Sessions(sessionName, store), logger.Middleware(appName))
 	authMiddleware := &auth.Middleware{}
-	authController := auth.NewAuthController()
+	authController := auth.NewAuthController(redirectUri)
 	authController.Handle(r)
 	//Serve static files
 	r.Static("/static", "./static")

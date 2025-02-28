@@ -26,10 +26,13 @@ type TokenResponse struct {
 }
 
 type Controller struct {
+	redirectUri string
 }
 
-func NewAuthController() *Controller {
-	return &Controller{}
+func NewAuthController(redirectUri string) *Controller {
+	return &Controller{
+		redirectUri: redirectUri,
+	}
 }
 
 func (ctrl *Controller) Handle(r *gin.Engine) {
@@ -58,7 +61,7 @@ func (ctrl *Controller) Handle(r *gin.Engine) {
 			return
 		}
 		cLogger.Info("login callback success, redirecting to /home")
-		c.Redirect(http.StatusFound, "/home")
+		c.Redirect(http.StatusFound, ctrl.redirectUri)
 	})
 }
 
