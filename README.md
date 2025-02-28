@@ -85,3 +85,6 @@ Then you can finally run the server :
 		panic(fmt.Sprintf("cannot run server: %v", err))
 	}
 ```
+
+The server is serving all files in the static directory of your project. The path to access them will be 
+`/static`. This is the place to put all images, css and js files.

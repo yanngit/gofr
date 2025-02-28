@@ -43,6 +43,8 @@ func NewServer(appName string) *Server {
 	authMiddleware := &auth.Middleware{}
 	authController := auth.NewAuthController()
 	authController.Handle(r)
+	//Serve static files
+	r.Static("/static", "./static")
 	return &Server{
 		r,
 		authMiddleware,
